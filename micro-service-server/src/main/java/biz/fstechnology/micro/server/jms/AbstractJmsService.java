@@ -34,7 +34,6 @@ import javax.jms.Topic;
 import org.springframework.jms.JmsException;
 import org.springframework.jms.core.JmsTemplate;
 
-import biz.fstechnology.micro.common.ProcessResult;
 import biz.fstechnology.micro.common.Request;
 import biz.fstechnology.micro.common.Result;
 import biz.fstechnology.micro.server.AbstractService;
@@ -97,7 +96,7 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 		} catch (JMSException | InterruptedException | ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			Result<Exception> result = new Result<Exception>(ProcessResult.UnExpectedException, e);
+			Result<Object> result = new Result<>(e);
 			try {
 				createJmsTemplate().convertAndSend(((Topic) message.getJMSDestination()).getTopicName(), result);
 			} catch (JmsException | JMSException e1) {

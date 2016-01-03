@@ -37,9 +37,20 @@ public class Result<T> implements Serializable {
 
 	private final ProcessResult result;
 
-	public Result(ProcessResult result, T response) {
+	private final Exception exception;
+
+	protected Result(ProcessResult result, T response, Exception exception) {
 		this.response = response;
 		this.result = result;
+		this.exception = exception;
+	}
+
+	public Result(ProcessResult result, T response) {
+		this(result, response, null);
+	}
+
+	public Result(Exception exception) {
+		this(ProcessResult.UnExpectedException, null, exception);
 	}
 
 	@SuppressWarnings("unchecked")
