@@ -48,4 +48,22 @@ public final class Version implements Serializable {
 		this.additional = additional;
 	}
 
+	/**
+	 * Returns SemVer-format version
+	 * 
+	 * @see java.lang.Object#toString()
+	 * @see <a href="http://semver.org/">http://semver.org/</a>
+	 */
+	@Override
+	public String toString() {
+		final String delim = ".";
+		StringBuffer sb = new StringBuffer() //
+				.append(major).append(delim) //
+				.append(minor).append(delim) //
+				.append(patch).append(delim);
+		if (additional != null) {
+			sb.append(additional);
+		}
+		return sb.toString();
+	}
 }
