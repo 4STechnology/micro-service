@@ -3,7 +3,7 @@
   <parent>
     <groupId>biz.fstechnology.micro</groupId>
     <artifactId>micro-service</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
   </parent>
   <artifactId>micro-service-api</artifactId>
   <dependencies>
