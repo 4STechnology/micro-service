@@ -28,7 +28,6 @@ import javax.jms.JMSException;
 import org.springframework.jms.core.JmsTemplate;
 
 import biz.fstechnology.micro.common.DefaultServiceConnection;
-import biz.fstechnology.micro.common.ProcessResult;
 import biz.fstechnology.micro.common.Request;
 import biz.fstechnology.micro.common.Result;
 import lombok.AccessLevel;
@@ -95,7 +94,7 @@ public class JmsServiceConnection extends DefaultServiceConnection {
 				callback.accept(rawResponse.get());
 			} catch (Exception e) {
 				e.printStackTrace();
-				Result<U> result = new Result<>(ProcessResult.UnExpectedException, e).cast();
+				Result<U> result = new Result<>(e);
 				callback.accept(result);
 			}
 		});
@@ -111,7 +110,7 @@ public class JmsServiceConnection extends DefaultServiceConnection {
 			return call(getDefaultDestination(), request);
 		} catch (JMSException e) {
 			e.printStackTrace();
-			return new Result<>(ProcessResult.UnExpectedException, e).cast();
+			return new Result<>(e);
 		}
 	}
 }
