@@ -89,11 +89,9 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 	public void onMessage(Message message) {
 		try {
 			ExecutorService executor = Executors.newSingleThreadExecutor();
-			System.err.println((((ObjectMessage) message).getObject()));
+
 			if (((ObjectMessage) message).getObject() instanceof Result) {
 				// no op
-				System.err.println("drop: " + message.toString());
-				System.err.println(" cont: " + ((Result<?>) ((ObjectMessage) message).getObject()).getResponse());
 				return;
 			}
 			Request<?> request = (Request<?>) ((ObjectMessage) message).getObject(); // cast hell...
@@ -111,7 +109,6 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 			messageCreator.setContents(result);
 			messageCreator.setRequestId(message.getJMSCorrelationID());
 
-			System.out.println("reply to: " + message.getJMSReplyTo());
 			replyProducer.send(message.getJMSReplyTo(), messageCreator.createMessage(session));
 
 		} catch (JMSException | InterruptedException | ExecutionException e) {
