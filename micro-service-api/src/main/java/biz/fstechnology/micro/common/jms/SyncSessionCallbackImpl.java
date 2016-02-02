@@ -17,16 +17,26 @@
 
 package biz.fstechnology.micro.common.jms;
 
+import java.io.Serializable;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageListener;
 import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
 import javax.jms.Session;
+import javax.jms.TemporaryQueue;
 import javax.jms.Topic;
 
 import org.springframework.jms.core.MessageCreator;
 import org.springframework.jms.core.SessionCallback;
+import org.springframework.jms.support.JmsUtils;
 
+import biz.fstechnology.micro.common.AutoCloseableWrapper;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,16 +47,19 @@ import lombok.Setter;
  * @author Maruyama Takayuki
  * @since 2016/01/01
  */
-public class SyncSessionCallbackImpl<T> implements SessionCallback<T> {
+public class SyncSessionCallbackImpl<T extends Serializable> implements SessionCallback<T>, MessageListener {
 
 	@Getter
 	private final String topicName;
 
 	@Getter
+	private Serializable messageObj;
+	@Getter
 	private final Class<T> messageObjectCls;
 
-	public SyncSessionCallbackImpl(String topicName, Class<T> messageObjectCls) {
+	public SyncSessionCallbackImpl(String topicName, Serializable messageObj, Class<T> messageObjectCls) {
 		this.topicName = topicName;
+		this.messageObj = messageObj;
 		this.messageObjectCls = messageObjectCls;
 	}
 
@@ -58,17 +71,57 @@ public class SyncSessionCallbackImpl<T> implements SessionCallback<T> {
 	@Setter(AccessLevel.PROTECTED)
 	private long timeout;
 
+	protected MessageProducer createProducer(Session session, Topic destTopic) {
+		try {
+			return session.createProducer(destTopic);
+		} catch (JMSException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+
+	protected MessageConsumer createConsumer(Session session, Destination responseDestination) {
+		try {
+			return session.createConsumer(responseDestination);
+		} catch (JMSException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
+
 	/**
 	 * @see org.springframework.jms.core.SessionCallback#doInJms(javax.jms.Session)
 	 */
 	@Override
 	public T doInJms(Session session) throws JMSException {
 		Topic destTopic = session.createTopic(topicName);
-		try (MessageConsumer consumer = session.createConsumer(destTopic);
-				MessageProducer producer = session.createProducer(destTopic)) {
+		TemporaryQueue responseQueue = session.createTemporaryQueue();
+
+		// oh my god...
+		// why MessageProducer & MessageConsumer not have AutoCloseable!!!
+		try (AutoCloseableWrapper<MessageProducer> producerCont = new AutoCloseableWrapper<>(
+				() -> createProducer(session, destTopic), JmsUtils::closeMessageProducer);
+				AutoCloseableWrapper<MessageConsumer> consumerCont = new AutoCloseableWrapper<>(
+						() -> createConsumer(session, responseQueue), JmsUtils::closeMessageConsumer)) {
+
+			MessageProducer producer = producerCont.unwrap();
+			MessageConsumer consumer = consumerCont.unwrap();
+			consumer.setMessageListener(this);
+
+			if (getMessageCreator() == null) {
+				RequestMessageCreator messageCreator = new RequestMessageCreator();
+				messageCreator.setContents(getMessageObj());
+				setMessageCreator(messageCreator);
+			}
+			if (getMessageCreator() instanceof RequestMessageCreator) {
+				((RequestMessageCreator) getMessageCreator()).setReplyTo(responseQueue);
+			}
 			Message requestMessage = getMessageCreator().createMessage(session);
 			producer.send(destTopic, requestMessage);
-			return null;
+
+			if (getMessageCreator() instanceof RequestMessageCreator) {
+				return waitResponse(consumer, requestMessage);
+			} else {
+				return null;
+			}
 		}
 	}
 
@@ -77,21 +130,33 @@ public class SyncSessionCallbackImpl<T> implements SessionCallback<T> {
 	}
 
 	protected final T waitResponse(MessageConsumer consumer, Message requestMessage, long timeout) throws JMSException {
-		while (true) {
-			Message response = consumer.receive(timeout);
-			if (response == null) {
-				// TIMEOUT
-				break;
-			} else {
-				final String correlationId = response.getJMSCorrelationID();
-				final String messageId = requestMessage.getJMSMessageID();
-				if (correlationId.equals(messageId)) {
-					// RESPONSE RECEIVED
-					return response.getBody(messageObjectCls);
-				}
+		if (timeout <= 0) {
+			return waitResponse(consumer, requestMessage, 30000);
+		}
+		try {
+			return responseQueue.poll(timeout, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e) {
+			// TODO TIMEOUT
+			return null;
+		}
+	}
+
+	final LinkedBlockingQueue<T> responseQueue = new LinkedBlockingQueue<>();
+
+	/**
+	 * @see javax.jms.MessageListener#onMessage(javax.jms.Message)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	public void onMessage(Message message) {
+		if (message instanceof ObjectMessage) {
+			try {
+				responseQueue.put((T) ((ObjectMessage) message).getObject());
+			} catch (JMSException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
-		return null;
 	}
 
 }

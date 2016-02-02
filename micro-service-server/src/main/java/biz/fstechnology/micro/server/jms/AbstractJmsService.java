@@ -24,12 +24,14 @@ import java.util.concurrent.Future;
 
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
+import javax.jms.DeliveryMode;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
+import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
 import javax.jms.Session;
-import javax.jms.Topic;
 
 import org.springframework.jms.JmsException;
 import org.springframework.jms.core.JmsTemplate;
@@ -54,6 +56,10 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 
 	protected abstract String getListenTopic();
 
+	private MessageProducer replyProducer;
+
+	private Session session;
+
 	protected final JmsTemplate createJmsTemplate() {
 		JmsTemplate jmsTemplate = new JmsTemplate(getConnectionFactory());
 		jmsTemplate.setPubSubDomain(true);
@@ -66,9 +72,12 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 	@Override
 	public void init() throws Exception {
 		Connection connection = createJmsTemplate().getConnectionFactory().createConnection();
-		Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+		session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 		MessageConsumer consumer = session.createConsumer(session.createTopic(getListenTopic()));
 		consumer.setMessageListener(this);
+
+		replyProducer = session.createProducer(null);
+		replyProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
 
 		connection.start();
 	}
@@ -80,7 +89,12 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 	public void onMessage(Message message) {
 		try {
 			ExecutorService executor = Executors.newSingleThreadExecutor();
-			Request<?> request = message.getBody(Request.class);
+
+			if (((ObjectMessage) message).getObject() instanceof Result) {
+				// no op
+				return;
+			}
+			Request<?> request = (Request<?>) ((ObjectMessage) message).getObject(); // cast hell...
 			Future<Request<?>> preProcessFuture = executor.submit(() -> onPreProcessRequest(request));
 
 			Future<Result<?>> resultFuture = executor.submit(() -> processRequest(preProcessFuture.get()));
@@ -91,14 +105,22 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 
 			Result<?> result = postProcessFuture.get();
 
-			createJmsTemplate().convertAndSend(((Topic) message.getJMSDestination()).getTopicName(), result);
+			ResponseMessageCreator messageCreator = new ResponseMessageCreator();
+			messageCreator.setContents(result);
+			messageCreator.setRequestId(message.getJMSCorrelationID());
+
+			replyProducer.send(message.getJMSReplyTo(), messageCreator.createMessage(session));
 
 		} catch (JMSException | InterruptedException | ExecutionException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			Result<Object> result = new Result<>(e);
 			try {
-				createJmsTemplate().convertAndSend(((Topic) message.getJMSDestination()).getTopicName(), result);
+				ResponseMessageCreator messageCreator = new ResponseMessageCreator();
+				messageCreator.setContents(result);
+				messageCreator.setRequestId(message.getJMSCorrelationID());
+
+				replyProducer.send(message.getJMSReplyTo(), messageCreator.createMessage(session));
 			} catch (JmsException | JMSException e1) {
 				e1.printStackTrace();
 			}
@@ -107,7 +129,7 @@ public abstract class AbstractJmsService extends AbstractService implements Mess
 
 	/**
 	 * @see biz.fstechnology.micro.server.Service#onPostProcessRequest(biz.fstechnology.micro.common.Request,
-	 *      biz.fstechnology.micro.common.Result)
+	 * biz.fstechnology.micro.common.Result)
 	 */
 	@Override
 	public <T, U> Result<U> onPostProcessRequest(Request<T> request, Result<U> result) {

@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>biz.fstechnology.micro</groupId>
 	<artifactId>micro-service</artifactId>
-	<version>1.1.0</version>
+	<version>1.2.0</version>
 	<packaging>pom</packaging>
 	<name>4S Technology Micro Service Base</name>
 
@@ -35,7 +35,7 @@
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<spring.version>4.2.4.RELEASE</spring.version>
 		<lombok.version>1.16.6</lombok.version>
-		<jms.version>2.0.1</jms.version>
+		<jms.version>1.1-rev-1</jms.version>
 	</properties>
 	<dependencies>
 		<dependency>

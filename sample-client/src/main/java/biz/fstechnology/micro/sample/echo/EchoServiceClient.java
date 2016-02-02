@@ -17,6 +17,9 @@
 
 package biz.fstechnology.micro.sample.echo;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import biz.fstechnology.micro.common.Request;
 import biz.fstechnology.micro.common.Result;
 import biz.fstechnology.micro.common.ServiceConnection;
@@ -31,11 +34,18 @@ import biz.fstechnology.micro.common.jms.JmsServiceConnection;
 public class EchoServiceClient {
 
 	public static void main(String... args) throws Exception {
+		System.setProperty("org.apache.activemq.SERIALIZABLE_PACKAGES", "biz.fstechnology.micro.common");
 		ServiceConnection jmsConnection = JmsServiceConnection.getInstance(EchoServiceDefinition.DESTINATION_TOPIC,
 				new EchoServiceDefinition().createConnectionFactory());
-		Result<String> result = jmsConnection.call(new Request<>(EchoServiceDefinition.DESTINATION_TOPIC,
-				EchoServiceDefinition.ECHO_PROCESS, EchoServiceDefinition.VERSION, "Hello Echo Service"));
-		System.out.println(result.getResponse());
+		BufferedReader consoleIn = new BufferedReader(new InputStreamReader(System.in));
+		while (true) {
+			System.out.print("> ");
+			String line = consoleIn.readLine();
+			System.out.println(">> Request: " + line);
+			Result<String> result = jmsConnection.call(new Request<>(EchoServiceDefinition.DESTINATION_TOPIC,
+					EchoServiceDefinition.ECHO_PROCESS, EchoServiceDefinition.VERSION, line));
+			System.out.println("<< Result: " + result.getResponse());
+		}
 	}
 
 }

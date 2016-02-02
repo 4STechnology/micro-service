@@ -19,7 +19,7 @@ package biz.fstechnology.micro.sample.echo;
 
 import javax.jms.ConnectionFactory;
 
-import org.apache.activemq.pool.PooledConnectionFactory;
+import org.apache.activemq.ActiveMQConnectionFactory;
 
 import biz.fstechnology.micro.common.ProcessResult;
 import biz.fstechnology.micro.common.Request;
@@ -36,6 +36,7 @@ import biz.fstechnology.micro.server.jms.AbstractJmsService;
 public class EchoService extends AbstractJmsService {
 
 	public static void main(String[] args) throws Exception {
+		System.setProperty("org.apache.activemq.SERIALIZABLE_PACKAGES", "biz.fstechnology.micro.common");
 		new EchoService().init();
 	}
 
@@ -96,7 +97,7 @@ public class EchoService extends AbstractJmsService {
 	 */
 	@Override
 	protected ConnectionFactory getConnectionFactory() {
-		return new PooledConnectionFactory(getBrokerUrl());
+		return new ActiveMQConnectionFactory("vm:(broker:(" + getBrokerUrl() + "))");
 	}
 
 	/**

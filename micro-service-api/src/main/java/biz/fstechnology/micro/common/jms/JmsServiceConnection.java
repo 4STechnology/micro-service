@@ -71,19 +71,21 @@ public class JmsServiceConnection extends DefaultServiceConnection {
 			// WARNING: the instance may be initialized. this cause
 			// re-initialize and previous settings are lost.
 		}
-		INSTANCE.setJmsTemplate(new JmsTemplate(connectionFactory));
+		JmsTemplate template = new JmsTemplate(connectionFactory);
+		template.setPubSubDomain(true);
+		INSTANCE.setJmsTemplate(template);
 		INSTANCE.setDefaultDestination(defaultDestination);
 		return INSTANCE;
 	}
 
 	@SuppressWarnings("unchecked")
 	public <T, U> Result<U> call(String destination, Request<T> request) throws JMSException {
-		return jmsTemplate.execute(new SyncSessionCallbackImpl<>(destination, Result.class));
+		return jmsTemplate.execute(new SyncSessionCallbackImpl<>(destination, request, Result.class), true);
 	}
 
 	/**
 	 * @see biz.fstechnology.micro.common.DefaultServiceConnection#callAsync(biz.fstechnology.micro.common.Request,
-	 *      java.util.function.Consumer)
+	 * java.util.function.Consumer)
 	 */
 	@Override
 	public <T, U> void callAsync(Request<T> request, Consumer<Result<U>> callback) {
