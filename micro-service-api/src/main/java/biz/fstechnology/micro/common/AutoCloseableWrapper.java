@@ -31,7 +31,7 @@ public class AutoCloseableWrapper<T> implements AutoCloseable {
 
 	private final Consumer<T> closeOperation;
 
-	public AutoCloseableWrapper(T target, Consumer<T> closeOperation) {
+	protected AutoCloseableWrapper(T target, Consumer<T> closeOperation) {
 		this.target = target;
 		this.closeOperation = closeOperation;
 	}
